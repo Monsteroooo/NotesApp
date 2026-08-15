@@ -1,0 +1,14 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+<script>
+    const connection = new signalR.HubConnectionBuilder().withUrl("/notesHub").build();
+    connection.start().then(() => {
+        console.log("Connected to SignalR hub");
+    }).catch(err => {
+        console.error("Error connecting to SignalR hub:", err);
+    });
+</script>
