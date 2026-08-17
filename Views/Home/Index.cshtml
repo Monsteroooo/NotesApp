@@ -2,13 +2,37 @@
     ViewData["Title"] = "Home Page";
 }
 
+<input type="text" id="noteInput" />
+<button id="sendButton">Створити нотатку</button>
+<ul id="notesList"></ul>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 
 <script>
+    const noteInput = document.getElementById("noteInput");
+    const sendButton = document.getElementById("sendButton");
     const connection = new signalR.HubConnectionBuilder().withUrl("/notesHub").build();
-    connection.start().then(() => {
+    connection.on("ReceiveNote", (note) => {
+        const li = document.createElement("li");
+        li.textContent = note;
+        document.getElementById("notesList").appendChild(li);
+    });
+
+        connection.start().then(() => {
         console.log("Connected to SignalR hub");
+        connection.invoke("JoinNoteGroup", "demo-group");
     }).catch(err => {
         console.error("Error connecting to SignalR hub:", err);
     });
+
+    sendButton.addEventListener("click", () => {
+        const note = noteInput.value;
+        if (note) {
+            connection.invoke("SendNote", note, "demo-group").catch(err => {
+                console.error("Error sending note:", err);
+            });
+            noteInput.value = "";
+        }
+    });
 </script>
+
