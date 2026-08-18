@@ -53,7 +53,7 @@ public class NotesHub : Hub
         note.Content = content;
         await context.SaveChangesAsync();
 
-        await Clients.Group(groupId).SendAsync("ReceiveNote", new
+        await Clients.GroupExcept(groupId, Context.ConnectionId).SendAsync("ReceiveNote", new
         {
             note.Id,
             note.Title,
