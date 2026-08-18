@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using NotesApp.Data;
 using NotesApp.Models;
+using System.Text.Json;
 
 namespace NotesApp.Hubs;
 
@@ -15,24 +16,45 @@ public class NotesHub : Hub
         this.context = context;
     }
 
-    public async Task SendNote(string note, string noteId)
+    public async Task SendNote(string noteJson, string groupId)
     {
-        var myNote = new Note
+        string title = "Без назви";
+        string content = string.Empty;
+
+        try
         {
-            Id = Guid.NewGuid(),
-            Content = note,
-            Title = "New Note",
+            var dto = JsonSerializer.Deserialize<JsonElement>(noteJson);
+            if (dto.TryGetProperty("title", out var t))   title   = t.GetString() ?? title;
+            if (dto.TryGetProperty("content", out var c)) content = c.GetString() ?? content;
+        }
+        catch
+        {
+            // fallback: treat plain string as content
+            content = noteJson;
+        }
+
+        var note = new Note
+        {
+            Id        = Guid.NewGuid(),
+            Title     = title,
+            Content   = content,
             CreatedAt = DateTime.UtcNow,
-            OwnerId = Context.UserIdentifier,
+            OwnerId   = Context.UserIdentifier,
         };
 
-        this.context.Notes.Add(myNote);
-        await this.context.SaveChangesAsync();
-        await Clients.Group(noteId).SendAsync("ReceiveNote", myNote);
+        context.Notes.Add(note);
+        await context.SaveChangesAsync();
+
+        await Clients.Group(groupId).SendAsync("ReceiveNote", new
+        {
+            note.Id,
+            note.Title,
+            note.CreatedAt,
+        });
     }
 
-    public async Task JoinNoteGroup(string noteId)
+    public async Task JoinNoteGroup(string groupId)
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, noteId);
+        await Groups.AddToGroupAsync(Context.ConnectionId, groupId);
     }
 }
