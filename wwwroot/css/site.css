@@ -404,6 +404,7 @@ html, body {
   flex: 1;
   display: flex;
   overflow: hidden;
+  flex-direction: row;
 }
 
 /* ── Editor pane ─────────────────────────────────────────── */
@@ -456,10 +457,11 @@ html, body {
 /* ── Preview pane ────────────────────────────────────────── */
 .preview-pane {
   flex: 1;
-  display: none;
+  display: flex !important;
   flex-direction: column;
   overflow-y: auto;
   padding: 32px 60px;
+  bourder-left: 1px solid var(--border);
 }
 
 .note-preview {

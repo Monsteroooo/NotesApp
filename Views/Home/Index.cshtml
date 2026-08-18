@@ -153,12 +153,6 @@
                     <span id="breadcrumb-title">Нова нотатка</span>
                 </div>
                 <div class="note-editor__topbar-actions">
-                    <button class="icon-btn" id="btn-toggle-mode" title="Режим перегляду/редагування">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" id="mode-icon-edit">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                    </button>
                     <button class="icon-btn" id="btn-download-note" title="Завантажити .md">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -172,15 +166,10 @@
                 </div>
             </div>
 
-            <!-- Split view: edit left / preview right (or single mode) -->
-            <div class="note-editor__body">
-                <div class="editor-pane" id="editor-pane">
-                    <input type="text" id="note-title-input" class="note-title-input" placeholder="Назва нотатки…" />
-                    <textarea id="note-content-input" class="note-content-textarea" placeholder="Починайте писати у Markdown…"></textarea>
-                </div>
-                <div class="preview-pane" id="preview-pane">
-                    <div id="note-preview" class="note-preview"></div>
-                </div>
+            <!-- Toast UI WYSIWYG Editor -->
+            <div class="note-editor__body" style="padding: 20px 60px; flex-direction: column;">
+                <input type="text" id="note-title-input" class="note-title-input" placeholder="Назва нотатки…" style="margin-bottom: 20px; padding: 0 0 10px 0;" />
+                <div id="toast-editor" style="flex: 1; min-height: 0;"></div> 
             </div>
 
             <div class="note-editor__statusbar">
@@ -208,10 +197,14 @@
 </div><!-- /app-shell -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
-<!-- marked.js for Markdown preview -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
+<!-- Toast UI Editor -->
+<link rel="stylesheet" href="~/lib/toastui-editor/toastui-editor.min.css" />
+<link rel="stylesheet" href="~/lib/toastui-editor/theme/toastui-editor-dark.min.css" />
+<script src="~/lib/toastui-editor/toastui-editor-all.min.js"></script>
 <script>
+window.onerror = function(msg, url, line, col, error) {
+    alert("JS Error: " + msg + " (Line: " + line + ")");
+};
 // ═══════════════════════════════════════════════════════════════
 //  NotesApp — Main UI
 // ═══════════════════════════════════════════════════════════════
@@ -227,8 +220,6 @@ const searchPanel     = document.getElementById('search-panel');
 const searchInput     = document.getElementById('search-input');
 
 const noteTitleInput   = document.getElementById('note-title-input');
-const noteContentInput = document.getElementById('note-content-input');
-const notePreview      = document.getElementById('note-preview');
 const breadcrumbTitle  = document.getElementById('breadcrumb-title');
 const statusWords      = document.getElementById('status-words');
 const statusChars      = document.getElementById('status-chars');
@@ -243,6 +234,32 @@ let allNotes      = [];
 let saveTimer     = null;
 let isPreviewMode = false;
 
+// ── Toast UI Editor ─────────────────────────────────────────────
+const toastEditor = new toastui.Editor({
+    el: document.querySelector('#toast-editor'),
+    height: '100%',
+    initialEditType: 'wysiwyg',
+    theme: 'dark',
+    toolbarItems: [
+        ['heading', 'bold', 'italic', 'strike'],
+        ['hr', 'quote'],
+        ['ul', 'ol', 'task', 'indent', 'outdent'],
+        ['table', 'image', 'link'],
+        ['code', 'codeblock']
+    ],
+    events: {
+        change: () => {
+            updateStats();
+            scheduleSave();
+            if (connection && currentNoteId) {
+                const title = noteTitleInput.value;
+                const content = toastEditor.getMarkdown();
+                connection.invoke('SendNote', JSON.stringify({ title, content }), currentNoteId);
+            }
+        }
+    }
+});
+
 // ── SignalR ─────────────────────────────────────────────────────
 let connection = null;
 if (isAuthenticated) {
@@ -254,9 +271,11 @@ if (isAuthenticated) {
     connection.on('ReceiveNote', (note) => {
         if (currentNoteId === note.id) {
             noteTitleInput.value = note.title;
-            noteContentInput.value = note.content;
+            // Оновлюємо текст тільки якщо він дійсно прийшов ззовні, щоб не збивати курсор
+            if (toastEditor.getMarkdown() !== note.content) {
+                toastEditor.setMarkdown(note.content);
+            }
             breadcrumbTitle.textContent = note.title;
-            updatePreview();
             updateStats();
         }
 
@@ -328,10 +347,9 @@ async function openNote(id) {
         }
 
         noteTitleInput.value   = note.title;
-        noteContentInput.value = note.content;
+        toastEditor.setMarkdown(note.content || '');
         breadcrumbTitle.textContent = note.title;
 
-        updatePreview();
         updateStats();
         showEditor();
         renderNotesList(allNotes);
@@ -380,7 +398,7 @@ async function saveCurrentNote() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: noteTitleInput.value,
-                content: noteContentInput.value
+                content: toastEditor.getMarkdown()
             })
         });
         if (res.ok) {
@@ -398,34 +416,13 @@ async function saveCurrentNote() {
     }
 }
 
-// ── Markdown preview ────────────────────────────────────────────
-function updatePreview() {
-    const md = noteContentInput?.value ?? '';
-    notePreview.innerHTML = marked.parse(md);
-}
-
 // ── Word/char stats ─────────────────────────────────────────────
 function updateStats() {
-    const text   = noteContentInput?.value ?? '';
+    const text   = toastEditor.getMarkdown() ?? '';
     const words  = text.trim() ? text.trim().split(/\s+/).length : 0;
     const chars  = text.length;
     statusWords.textContent = `${words} сл.`;
     statusChars.textContent = `${chars} симв.`;
-}
-
-// ── Toggle preview/edit mode ────────────────────────────────────
-function toggleMode() {
-    isPreviewMode = !isPreviewMode;
-    const editorPane  = document.getElementById('editor-pane');
-    const previewPane = document.getElementById('preview-pane');
-    if (isPreviewMode) {
-        updatePreview();
-        editorPane.style.display  = 'none';
-        previewPane.style.display = 'flex';
-    } else {
-        editorPane.style.display  = 'flex';
-        previewPane.style.display = 'none';
-    }
 }
 
 // ── Delete note ─────────────────────────────────────────────────
@@ -481,7 +478,6 @@ document.getElementById('btn-create-first')?.addEventListener('click', showNewNo
 document.getElementById('btn-save-new')?.addEventListener('click', saveNewNote);
 document.getElementById('btn-cancel-new')?.addEventListener('click', showWelcome);
 
-document.getElementById('btn-toggle-mode')?.addEventListener('click', toggleMode);
 document.getElementById('btn-delete-note')?.addEventListener('click', deleteCurrentNote);
 
 document.getElementById('btn-download-note')?.addEventListener('click', () => {
@@ -493,19 +489,7 @@ noteTitleInput?.addEventListener('input', () => {
     scheduleSave();
     if (connection && currentNoteId) {
         const title = noteTitleInput.value;
-        const content = noteContentInput.value;
-        connection.invoke('SendNote', JSON.stringify({ title, content }), currentNoteId);
-    }
-});
-
-noteContentInput?.addEventListener('input', () => {
-    updateStats();
-    if (isPreviewMode) updatePreview();
-    scheduleSave();
-    if (connection && currentNoteId) {
-        const title = noteTitleInput.value;
-        const content = noteContentInput.value;
-        // Відправляємо новий текст в кімнату поточної нотатки
+        const content = toastEditor.getMarkdown();
         connection.invoke('SendNote', JSON.stringify({ title, content }), currentNoteId);
     }
 });
@@ -556,10 +540,6 @@ document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
         if (isAuthenticated) showNewNotePanel();
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
-        e.preventDefault();
-        toggleMode();
     }
     if (e.key === 'Escape' && newNotePanel.style.display !== 'none') {
         showWelcome();
