@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Authorization;
 using NotesApp.Data;
 using NotesApp.Models;
 
 namespace NotesApp.Hubs;
 
+[Authorize]
 public class NotesHub : Hub
 {
     private readonly ApplicationDbContext context;
@@ -20,7 +22,8 @@ public class NotesHub : Hub
             Id = Guid.NewGuid(),
             Content = note,
             Title = "New Note",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            OwnerId = Context.UserIdentifier,
         };
 
         this.context.Notes.Add(myNote);

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NotesApp.Models;
 using NotesApp.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace NotesApp.Controllers;
 
@@ -32,7 +33,8 @@ public class HomeController : Controller
     {
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
     }
-
+    
+    [Authorize]
     [HttpGet ("download/{id}")]
     public async Task<IActionResult> DownloadNote(Guid id)
     {

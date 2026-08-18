@@ -14,8 +14,11 @@
     const connection = new signalR.HubConnectionBuilder().withUrl("/notesHub").build();
     connection.on("ReceiveNote", (note) => {
         const li = document.createElement("li");
-        li.href = '/download/${note.id}';
         li.textContent = note.content;
+        const a = document.createElement("a");
+        a.href = `/download/${note.id}`;
+        a.textContent = " [Завантажити .md]";
+        li.appendChild(a);
         document.getElementById("notesList").appendChild(li);
     });
 
