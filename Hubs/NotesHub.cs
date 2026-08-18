@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using NotesApp.Data;
 using NotesApp.Models;
 using System.Text.Json;
@@ -29,32 +30,55 @@ public class NotesHub : Hub
         }
         catch
         {
-            // fallback: treat plain string as content
             content = noteJson;
         }
 
-        var note = new Note
-        {
-            Id        = Guid.NewGuid(),
-            Title     = title,
-            Content   = content,
-            CreatedAt = DateTime.UtcNow,
-            OwnerId   = Context.UserIdentifier,
-        };
+        var noteId = Guid.Parse(groupId);
+        var note = await context.Notes.FirstOrDefaultAsync(n => n.Id == noteId);
 
-        context.Notes.Add(note);
+        if (note == null) return;
+
+        var currentUserId = Context.UserIdentifier;
+
+        if (currentUserId != note.OwnerId)
+        {
+            var access = await context.NoteAccesses.FirstOrDefaultAsync(na => na.NoteId == noteId && na.UserId == currentUserId && na.CanEdit == true);
+            if (access == null)
+            {
+                return;
+            }
+        }
+        
+        note.Title = title;
+        note.Content = content;
         await context.SaveChangesAsync();
 
         await Clients.Group(groupId).SendAsync("ReceiveNote", new
         {
             note.Id,
             note.Title,
+            note.Content,
             note.CreatedAt,
         });
     }
 
     public async Task JoinNoteGroup(string groupId)
     {
+        var noteId = Guid.Parse(groupId);
+        var note = await context.Notes.FirstOrDefaultAsync(n => n.Id == noteId);
+        if (note == null) return;
+
+        var CurrentUserId = Context.UserIdentifier;
+
+        if (CurrentUserId != note.OwnerId)
+        {
+            var access = await context.NoteAccesses.FirstOrDefaultAsync(na => na.NoteId == noteId && na.UserId == CurrentUserId);
+            if (access == null)
+            {
+                return;
+            }
+        }
+
         await Groups.AddToGroupAsync(Context.ConnectionId, groupId);
     }
 }

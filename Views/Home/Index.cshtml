@@ -252,12 +252,20 @@ if (isAuthenticated) {
         .build();
 
     connection.on('ReceiveNote', (note) => {
-        allNotes.unshift(note);
+        if (currentNoteId === note.id) {
+            noteTitleInput.value = note.title;
+            noteContentInput.value = note.content;
+            breadcrumbTitle.textContent = note.title;
+            updatePreview();
+            updateStats();
+        }
+
+        const idx = allNotes.findIndex(n => n.id === note.id);
+        if (idx >= 0) allNotes[idx] = note; else allNotes.unshift(note);
         renderNotesList(allNotes);
     });
 
     connection.start()
-        .then(() => connection.invoke('JoinNoteGroup', 'main'))
         .catch(err => console.error('SignalR error:', err));
 }
 
@@ -315,6 +323,9 @@ async function openNote(id) {
         if (!res.ok) return;
         const note = await res.json();
         currentNoteId = id;
+        if (connection) {
+            connection.invoke('JoinNoteGroup', id).catch(err => console.error(err));
+        }
 
         noteTitleInput.value   = note.title;
         noteContentInput.value = note.content;
@@ -436,12 +447,21 @@ async function deleteCurrentNote() {
 async function saveNewNote() {
     const title   = newNoteTitleInput.value.trim() || 'Без назви';
     const content = newNoteContentInput.value.trim();
-    if (!connection) return;
+    
     try {
-        // We pass title|content so hub can parse (simple protocol)
-        await connection.invoke('SendNote', JSON.stringify({ title, content }), 'main');
-        newNotePanel.style.display = 'none';
-        showWelcome();
+        const res = await fetch('/api/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content })
+        });
+        
+        if (res.ok) {
+            const newNote = await res.json();
+            allNotes.unshift(newNote); // Додаємо створену нотатку на початок списку
+            
+            newNotePanel.style.display = 'none';
+            await openNote(newNote.id); // Одразу автоматично відкриваємо її для редагування!
+        }
     } catch (e) {
         console.error('Save failed:', e);
     }
@@ -471,12 +491,23 @@ document.getElementById('btn-download-note')?.addEventListener('click', () => {
 noteTitleInput?.addEventListener('input', () => {
     breadcrumbTitle.textContent = noteTitleInput.value || 'Нова нотатка';
     scheduleSave();
+    if (connection && currentNoteId) {
+        const title = noteTitleInput.value;
+        const content = noteContentInput.value;
+        connection.invoke('SendNote', JSON.stringify({ title, content }), currentNoteId);
+    }
 });
 
 noteContentInput?.addEventListener('input', () => {
     updateStats();
     if (isPreviewMode) updatePreview();
     scheduleSave();
+    if (connection && currentNoteId) {
+        const title = noteTitleInput.value;
+        const content = noteContentInput.value;
+        // Відправляємо новий текст в кімнату поточної нотатки
+        connection.invoke('SendNote', JSON.stringify({ title, content }), currentNoteId);
+    }
 });
 
 // ── Search toggle ────────────────────────────────────────────────
