@@ -1,5 +1,5 @@
-namespase NotesApp.Models
-{
+namespace NotesApp.Models;
+
     public class NoteAccess
     {
         public Guid Id { get; set; }
@@ -7,4 +7,4 @@ namespase NotesApp.Models
         public string UserId { get; set; }
         public bool CanEdit { get; set; } = false;
     }
-}
+
