@@ -760,3 +760,28 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Modal ────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.modal-overlay.active { opacity: 1; pointer-events: auto; }
+.modal-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 400px; max-width: 90vw;
+  box-shadow: var(--shadow-md);
+  transform: translateY(10px); transition: transform 0.2s;
+}
+.modal-overlay.active .modal-content { transform: translateY(0); }
+.modal-header { font-size: 1.1rem; font-weight: 500; color: var(--text-primary); margin-bottom: 16px; }
+.modal-body { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 12px; }
+.modal-footer button { padding: 8px 16px; }

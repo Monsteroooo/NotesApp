@@ -153,6 +153,11 @@
                     <span id="breadcrumb-title">Нова нотатка</span>
                 </div>
                 <div class="note-editor__topbar-actions">
+                    <button class="icon-btn" id="btn-share-note" title="Поділитися нотаткою">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </button>
                     <button class="icon-btn" id="btn-download-note" title="Завантажити .md">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -194,6 +199,25 @@
 
     </div><!-- /editor-area -->
 
+    <!-- ═══════════════════════════════════════════════════
+         SHARE MODAL
+    ═══════════════════════════════════════════════════ -->
+    <div class="modal-overlay" id="share-modal">
+        <div class="modal-content">
+            <div class="modal-header">Поділитися нотаткою</div>
+            <div class="modal-body">
+                <input type="email" id="share-email" class="search-input" placeholder="Email друга..." style="width: 100%; border: 1px solid var(--border);" />
+                <label style="display: flex; align-items: center; gap: 8px; color: var(--text-primary); font-size: 0.9rem; margin-top: 8px;">
+                    <input type="checkbox" id="share-can-edit" style="width: 16px; height: 16px; accent-color: var(--accent);" />
+                    Дозволити редагування
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-ghost" id="btn-share-cancel">Скасувати</button>
+                <button class="btn-primary" id="btn-share-submit">Поділитися</button>
+            </div>
+        </div>
+    </div>
 </div><!-- /app-shell -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
@@ -492,6 +516,52 @@ noteTitleInput?.addEventListener('input', () => {
         const title = noteTitleInput.value;
         const content = toastEditor.getMarkdown();
         connection.invoke('SendNote', JSON.stringify({ title, content }), currentNoteId);
+    }
+});
+
+// ── Share Modal ────────────────────────────────────────────────
+const shareModal = document.getElementById('share-modal');
+const shareEmailInput = document.getElementById('share-email');
+const shareCanEditCheck = document.getElementById('share-can-edit');
+
+document.getElementById('btn-share-note')?.addEventListener('click', () => {
+    if (!currentNoteId) return;
+    shareEmailInput.value = '';
+    shareCanEditCheck.checked = false;
+    shareModal.classList.add('active');
+    setTimeout(() => shareEmailInput.focus(), 50);
+});
+
+document.getElementById('btn-share-cancel')?.addEventListener('click', () => {
+    shareModal.classList.remove('active');
+});
+
+document.getElementById('btn-share-submit')?.addEventListener('click', async () => {
+    if (!currentNoteId) return;
+    const email = shareEmailInput.value.trim();
+    if (!email) {
+        alert('Введіть email!');
+        return;
+    }
+    const canEdit = shareCanEditCheck.checked;
+
+    try {
+        const response = await fetch(`/api/notes/${currentNoteId}/share`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, canEdit })
+        });
+        
+        if (response.ok) {
+            shareModal.classList.remove('active');
+            alert('Успішно надіслано!');
+        } else {
+            const err = await response.text();
+            alert('Помилка: ' + err);
+        }
+    } catch (e) {
+        alert('Сталася помилка з\'єднання');
+        console.error(e);
     }
 });
 
