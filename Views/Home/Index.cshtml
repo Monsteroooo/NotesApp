@@ -257,6 +257,7 @@ let currentNoteId = null;
 let allNotes      = [];
 let saveTimer     = null;
 let isPreviewMode = false;
+let isReceiving   = false;
 
 // ── Toast UI Editor ─────────────────────────────────────────────
 const toastEditor = new toastui.Editor({
@@ -274,6 +275,7 @@ const toastEditor = new toastui.Editor({
     ],
     events: {
         change: () => {
+            if (isReceiving) return;
             updateStats();
             scheduleSave();
             if (connection && currentNoteId) {
@@ -296,9 +298,28 @@ if (isAuthenticated) {
     connection.on('ReceiveNote', (note) => {
         if (currentNoteId === note.id) {
             noteTitleInput.value = note.title;
-            // Оновлюємо текст тільки якщо він дійсно прийшов ззовні, щоб не збивати курсор
+            // Оновлюємо текст тільки якщо він дійсно прийшов ззовні
             if (toastEditor.getMarkdown() !== note.content) {
-                toastEditor.setMarkdown(note.content);
+                isReceiving = true;
+                
+                // Перевіряємо, чи ми зараз активно пишемо в редакторі
+                let hasFocus = false;
+                try {
+                    hasFocus = document.activeElement && document.querySelector('.toastui-editor-defaultUI').contains(document.activeElement);
+                } catch(e) {}
+
+                const selection = hasFocus ? toastEditor.getSelection() : null;
+                const scrollTop = toastEditor.getScrollTop();
+                
+                toastEditor.setMarkdown(note.content, false);
+                
+                if (hasFocus && selection) {
+                    try { toastEditor.setSelection(selection[0], selection[1]); } catch(e) {}
+                }
+
+                // Примусово повертаємо скрол туди, де він був (синхронно, щоб уникнути мерехтіння)
+                toastEditor.setScrollTop(scrollTop);
+                isReceiving = false;
             }
             breadcrumbTitle.textContent = note.title;
             updateStats();
@@ -434,9 +455,15 @@ async function saveCurrentNote() {
             renderNotesList(allNotes);
             statusSaved.textContent = 'Збережено';
             statusSaved.className   = 'status-saved';
+        } else if (res.status === 401 || res.status === 403) {
+            statusSaved.textContent = 'Немає доступу';
+            statusSaved.className   = 'status-error';
+        } else {
+            statusSaved.textContent = 'Помилка';
+            statusSaved.className   = 'status-error';
         }
     } catch (e) {
-        statusSaved.textContent = 'Помилка';
+        statusSaved.textContent = 'Помилка мережі';
         statusSaved.className   = 'status-error';
     }
 }
